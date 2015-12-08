@@ -5,23 +5,20 @@ import (
 	"fmt"
 	"os"
 	"path"
-	"strings"
 	"strconv"
+	"strings"
 )
 
 func main() {
-	if (len(os.Args) != 2) {
+	if len(os.Args) != 2 {
 		fmt.Printf("Usage: %s <seed>\n", path.Base(os.Args[0]))
 		os.Exit(1)
 	}
 
-	five_zeros := "00000"
-	fmt.Printf("%v\t", five_zeros)
-	fmt.Println(prefixHash(os.Args[1], five_zeros))
-
-	six_zeros := "000000"
-	fmt.Printf("%v\t", six_zeros)
-	fmt.Println(prefixHash(os.Args[1], six_zeros))
+	for _, prefix := range []string{"00000", "000000"} {
+		fmt.Printf("%v\t", prefix)
+		fmt.Println(prefixHash(os.Args[1], prefix))
+	}
 }
 
 func prefixHash(seed string, prefix string) (string, uint64) {
