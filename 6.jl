@@ -5,63 +5,22 @@ immutable Point
   y
 end
 
-function turn_on(lights, top_left, bottom_right)
-  lights[top_left.x:bottom_right.x, top_left.y:bottom_right.y] = true
-  lights
-end
+Base.sub(a, tl, br) = sub(a, tl.x:br.x, tl.y:br.y)
 
-function toggle(lights, top_left, bottom_right)
-  a = sub(lights, top_left.x:bottom_right.x, top_left.y:bottom_right.y)
-  for i in eachindex(a)
-    a[i] = !a[i]
-  end
-
-  lights
-end
-
-function turn_off(lights, top_left, bottom_right)
-  lights[top_left.x:bottom_right.x, top_left.y:bottom_right.y] = false
-  lights
-end
-
-@test turn_on(falses(10, 10), Point(1, 1), Point(10, 10)) == trues(10, 10)
-@test toggle([[true false]; [false true]], Point(1, 1), Point(2, 2)) == [
-  [false true];
-  [true false];
-]
-@test turn_off(trues(4, 4), Point(2, 2), Point(3, 3)) == [
-  [true true true true];
-  [true false false true];
-  [true false false true];
-  [true true true true];
-]
-
-immutable Instruction
+immutable Instruction{T}
   top_left
   bottom_right
 end
 
-immutable On
-  instruction
-
-  On(tl, br) = new(Instruction(tl, br))
-end
-
-immutable Toggle
-  instruction
-
-  Toggle(tl, br) = new(Instruction(tl, br))
-end
-
-immutable Off
-  instruction
-
-  Off(tl, br) = new(Instruction(tl, br))
-end
+@enum INSTRUCTIONS On Toggle Off
 
 function parse_instruction(line)
   re = r"(turn on|toggle|turn off) (\d+),(\d+) through (\d+),(\d+)"
-  actions = Dict("turn on" => On, "toggle" => Toggle, "turn off" => Off)
+  actions = Dict(
+    "turn on" => Instruction{On},
+    "toggle" => Instruction{Toggle},
+    "turn off" => Instruction{Off},
+  )
 
   m = match(re, line)
   if m != nothing
@@ -75,18 +34,31 @@ function parse_instruction(line)
 end
 
 @test parse_instruction("invalid line") == nothing
-@test parse_instruction("turn on 0,0 through 999,999") == On(Point(1, 1), Point(1000, 1000))
-@test parse_instruction("toggle 0,0 through 999,0") == Toggle(Point(1, 1), Point(1000, 1))
-@test parse_instruction("turn off 499,499 through 500,500") == Off(Point(500, 500), Point(501, 501))
+@test parse_instruction("turn on 0,0 through 999,999") == Instruction{On}(Point(1, 1), Point(1000, 1000))
+@test parse_instruction("toggle 0,0 through 999,0") == Instruction{Toggle}(Point(1, 1), Point(1000, 1))
+@test parse_instruction("turn off 499,499 through 500,500") == Instruction{Off}(Point(500, 500), Point(501, 501))
 
-dispatch_table = Dict(On => turn_on, Toggle => toggle, Off => turn_off)
+process(i::Instruction{On}, v::Bool) = true
+process(i::Instruction{Toggle}, v::Bool) = !v
+process(i::Instruction{Off}, v::Bool) = false
 
-lights = falses(1000, 1000)
-for line in eachline(STDIN)
-  i = parse_instruction(line)
-  if i != nothing
-    dispatch_table[typeof(i)](lights, i.instruction.top_left, i.instruction.bottom_right)
-  end
+process(i::Instruction{On}, v::Int) = v + 1
+process(i::Instruction{Toggle}, v::Int) = v + 2
+process(i::Instruction{Off}, v::Int) = max(0, v - 1)
+
+function process(instruction, lights)
+  map!(
+    x -> process(instruction, x),
+    sub(lights, instruction.top_left, instruction.bottom_right)
+  )
 end
 
-println(countnz(lights))
+lights_lit = falses(1000, 1000)
+lights_brightness = zeros(Int, 1000, 1000)
+for i in map(parse_instruction, eachline(STDIN))
+  process(i, lights_lit)
+  process(i, lights_brightness)
+end
+
+println(countnz(lights_lit))
+println(sum(lights_brightness))
